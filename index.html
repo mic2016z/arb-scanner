@@ -275,8 +275,11 @@ function maybePaperTrade() {
   const minNet = parseFloat(document.getElementById('paper-min-spread').value) || 0.8;
   const riskPct = parseFloat(document.getElementById('risk-pct').value) || 8;
   const tradeSize = Math.max(3, Math.min(bot.balance * (riskPct/100), 15));
-  const candidates = allData.filter(o => o.netSpread >= minNet && ['DOGE','XRP','SOL','ARB','OP','SUI','MATIC'].includes(o.token));
-  if (!candidates.length) return;
+  const candidates = allData.filter(o => o.netSpread >= minNet && o.netSpread > 0 && ['DOGE','XRP','SOL','ARB','OP','SUI','MATIC'].includes(o.token));
+  if (!candidates.length) {
+    addBotLog('No safe edge found. Skipping trade.', 'mid');
+    return;
+  }
 
   const pick = candidates[0];
   const expected = tradeSize * (pick.netSpread / 100);
