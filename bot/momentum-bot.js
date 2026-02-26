@@ -14,16 +14,39 @@ const MAX_DAILY_LOSS_USDC = Number(process.env.MAX_DAILY_LOSS_USDC || 3);
 const MAX_OPEN_POSITIONS = Number(process.env.MAX_OPEN_POSITIONS || 2);
 const SLIPPAGE_BPS = Number(process.env.SLIPPAGE_BPS || 100);
 
-// Momentum entry thresholds
-const MIN_PRICE_CHANGE_PCT = Number(process.env.MIN_PRICE_CHANGE_PCT || 3.0);   // min % move to enter
-const LOOKBACK_SAMPLES = Number(process.env.LOOKBACK_SAMPLES || 12);             // ~3 min at 15s loops
-const VOLUME_SPIKE_MULT = Number(process.env.VOLUME_SPIKE_MULT || 1.5);          // not used yet (no vol feed)
+// Momentum entry thresholds (defaults, overridden per-token by calibration)
+const MIN_PRICE_CHANGE_PCT = Number(process.env.MIN_PRICE_CHANGE_PCT || 1.5);
+const LOOKBACK_SAMPLES = Number(process.env.LOOKBACK_SAMPLES || 12);
+const VOLUME_SPIKE_MULT = Number(process.env.VOLUME_SPIKE_MULT || 1.5);
 
-// Exit thresholds
-const TRAILING_STOP_PCT = Number(process.env.TRAILING_STOP_PCT || 3.0);
-const TAKE_PROFIT_PCT = Number(process.env.TAKE_PROFIT_PCT || 8.0);
-const MAX_HOLD_MS = Number(process.env.MAX_HOLD_MS || 600_000); // 10 min max hold
-const STOP_LOSS_PCT = Number(process.env.STOP_LOSS_PCT || 4.0);
+// Exit thresholds (defaults, overridden per-token by calibration)
+const TRAILING_STOP_PCT = Number(process.env.TRAILING_STOP_PCT || 1.5);
+const TAKE_PROFIT_PCT = Number(process.env.TAKE_PROFIT_PCT || 3.2);
+const MAX_HOLD_MS = Number(process.env.MAX_HOLD_MS || 600_000);
+const STOP_LOSS_PCT = Number(process.env.STOP_LOSS_PCT || 2.0);
+
+// ── Load calibration from historical data ───────────────────────────────
+const CALIBRATION_PATH = path.join(process.cwd(), 'bot', 'data', 'bot-calibration.json');
+let calibration = {};
+try {
+  if (fs.existsSync(CALIBRATION_PATH)) {
+    calibration = JSON.parse(fs.readFileSync(CALIBRATION_PATH, 'utf-8'));
+    console.log(`Loaded calibration for ${Object.keys(calibration).length} tokens`);
+  }
+} catch { console.log('No calibration file found, using defaults'); }
+
+function getTokenParam(symbol, param, fallback) {
+  return calibration[symbol]?.[param] ?? fallback;
+}
+function getTokenBestHours(symbol) {
+  return calibration[symbol]?.bestHoursUTC || null;
+}
+function isGoodHourForToken(symbol) {
+  const hours = getTokenBestHours(symbol);
+  if (!hours || hours.length === 0) return true; // no data = allow all
+  const nowUTC = new Date().getUTCHours();
+  return hours.includes(nowUTC);
+}
 
 // ── Tokens ──────────────────────────────────────────────────────────────
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -122,11 +145,14 @@ function getRecentPriceChangePct(symbol) {
 }
 
 function isMomentumEntry(symbol) {
-  const changePct = getRecentPriceChangePct(symbol);
-  // Require sustained upward move
-  if (changePct < MIN_PRICE_CHANGE_PCT) return false;
+  // Time-of-day filter from historical data
+  if (!isGoodHourForToken(symbol)) return false;
 
-  // Check it's not just a spike: require at least 60% of recent samples trending same direction
+  const entryThreshold = getTokenParam(symbol, 'entryPct', MIN_PRICE_CHANGE_PCT);
+  const changePct = getRecentPriceChangePct(symbol);
+  if (changePct < entryThreshold) return false;
+
+  // Check it's not just a spike: require at least 55% of recent samples trending same direction
   const hist = priceHistory[symbol];
   if (hist.length < 4) return false;
   let upCount = 0;
@@ -134,7 +160,13 @@ function isMomentumEntry(symbol) {
     if (hist[i].price < hist[i - 1].price) upCount++; // fewer tokens = price up
   }
   const upRatio = upCount / (hist.length - 1);
-  return upRatio >= 0.55;
+  if (upRatio < 0.55) return false;
+
+  // Minimum liquidity filter (skip illiquid tokens)
+  const liq = calibration[symbol]?.liquidity || 0;
+  if (liq > 0 && liq < 50_000) return false;
+
+  return true;
 }
 
 // ── Position management ─────────────────────────────────────────────────
@@ -198,14 +230,19 @@ async function checkExits() {
       const hwm = pos.highWaterMarkUSDC || pos.sizeUSDC;
       const drawdownFromPeakPct = ((hwm - currentUSDC) / hwm) * 100;
 
+      // Per-token calibrated thresholds
+      const tokenTP = getTokenParam(pos.symbol, 'takeProfitPct', TAKE_PROFIT_PCT);
+      const tokenSL = getTokenParam(pos.symbol, 'stopLossPct', STOP_LOSS_PCT);
+      const tokenTrail = getTokenParam(pos.symbol, 'trailingStopPct', TRAILING_STOP_PCT);
+
       let exitReason = null;
 
-      // Take profit
-      if (pnlPct >= TAKE_PROFIT_PCT) exitReason = 'take_profit';
-      // Stop loss
-      else if (pnlPct <= -STOP_LOSS_PCT) exitReason = 'stop_loss';
-      // Trailing stop (only if we've been profitable)
-      else if (hwm > pos.sizeUSDC && drawdownFromPeakPct >= TRAILING_STOP_PCT) exitReason = 'trailing_stop';
+      // Take profit (calibrated per token)
+      if (pnlPct >= tokenTP) exitReason = 'take_profit';
+      // Stop loss (calibrated per token)
+      else if (pnlPct <= -tokenSL) exitReason = 'stop_loss';
+      // Trailing stop (calibrated per token)
+      else if (hwm > pos.sizeUSDC && drawdownFromPeakPct >= tokenTrail) exitReason = 'trailing_stop';
       // Max hold time
       else if (holdMs >= MAX_HOLD_MS) exitReason = 'max_hold_timeout';
 

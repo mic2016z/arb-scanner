@@ -18,16 +18,11 @@ const EXTRA_SAFETY_BPS = Number(process.env.EXTRA_SAFETY_BPS || 25); // latency/
 const MAX_PRICE_IMPACT_PCT = Number(process.env.MAX_PRICE_IMPACT_PCT || 0.35); // per leg
 
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+// Iter #6: Synced with spread-monitor — only SOL/JUP/RAY show viable edge
 const CANDIDATES = [
-  // High-liquidity tokens (tighter spreads, realistic arb edge)
   { symbol: 'SOL',  mint: 'So11111111111111111111111111111111111111112' },
   { symbol: 'JUP',  mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN' },
   { symbol: 'RAY',  mint: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R' },
-  { symbol: 'JTO',  mint: 'jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL' },
-  { symbol: 'PYTH', mint: 'HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3' },
-  // Meme coins (wider spreads but potential vol spikes)
-  { symbol: 'BONK', mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6fRdbs8xwYJmwjT' },
-  { symbol: 'WIF',  mint: 'EKpQGSJtjMFqKZKQanSqYXRcF4fBopz4FY2M8mJv6S6X' },
 ];
 
 if (!PRIVATE_KEY) {
@@ -255,9 +250,12 @@ async function loop() {
             expectedPnl: Number(best.grossPnl.toFixed(4)),
           });
         }
-        const top3 = ranked.slice(0, 3);
-        const spreadRow = [new Date().toISOString(), ...top3.map(t => `${t.token.symbol}:${t.netEdgeBps.toFixed(2)}`)].join(',');
-        fs.appendFileSync(path.join(LOG_DIR, 'spread-tracker.csv'), spreadRow + '\n');
+        // Iter #6: Write one row per token (matches spread-monitor CSV format)
+        const ts = new Date().toISOString();
+        for (const t of ranked) {
+          const usdcBack = TRADE_SIZE_USDC * (1 + t.netEdgeBps / 10000);
+          fs.appendFileSync(path.join(LOG_DIR, 'spread-tracker.csv'), `${ts},${t.token.symbol},${t.netEdgeBps.toFixed(2)},${usdcBack.toFixed(4)}\n`);
+        }
 
         await maybeTrade(best);
       } else {

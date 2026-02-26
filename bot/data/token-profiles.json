@@ -1,0 +1,274 @@
+{
+  "generatedAt": "2026-02-26T21:15:10.215Z",
+  "tokens": {
+    "BONK": {
+      "symbol": "BONK",
+      "dataPoints": 169,
+      "periodHours": 168,
+      "currentPrice": 0.000006063414580372309,
+      "priceRange": {
+        "low": 0.000005721464529540194,
+        "high": 0.0000067487940891385065
+      },
+      "hourlyReturnMean": -0.0022,
+      "hourlyReturnStdDev": 0.9328,
+      "dailyVolatilityPct": 4.57,
+      "maxDrawdownPct": 11.68,
+      "breakoutCount": 92,
+      "bestHoursUTC": [
+        2,
+        3,
+        10,
+        11,
+        0,
+        1
+      ],
+      "avgDailyVolumeUSD": 49110462,
+      "suggested": {
+        "entryPct": 1.5,
+        "stopLossPct": 2,
+        "takeProfitPct": 3.2,
+        "trailingStopPct": 1.5
+      }
+    },
+    "WIF": {
+      "symbol": "WIF",
+      "dataPoints": 169,
+      "periodHours": 168,
+      "currentPrice": 0.2074708826424127,
+      "priceRange": {
+        "low": 0.19398277869304925,
+        "high": 0.2276961879332838
+      },
+      "hourlyReturnMean": -0.0199,
+      "hourlyReturnStdDev": 0.9947,
+      "dailyVolatilityPct": 4.87,
+      "maxDrawdownPct": 14.81,
+      "breakoutCount": 95,
+      "bestHoursUTC": [
+        2,
+        14,
+        0,
+        3,
+        19,
+        1
+      ],
+      "avgDailyVolumeUSD": 70363741,
+      "suggested": {
+        "entryPct": 1.5,
+        "stopLossPct": 2,
+        "takeProfitPct": 3.41,
+        "trailingStopPct": 1.5
+      }
+    },
+    "POPCAT": {
+      "symbol": "POPCAT",
+      "dataPoints": 169,
+      "periodHours": 168,
+      "currentPrice": 0.04817959571143004,
+      "priceRange": {
+        "low": 0.045360384626722386,
+        "high": 0.05390461974771427
+      },
+      "hourlyReturnMean": -0.0117,
+      "hourlyReturnStdDev": 0.9594,
+      "dailyVolatilityPct": 4.7,
+      "maxDrawdownPct": 13.59,
+      "breakoutCount": 109,
+      "bestHoursUTC": [
+        2,
+        10,
+        11,
+        12,
+        20,
+        3
+      ],
+      "avgDailyVolumeUSD": 17255427,
+      "suggested": {
+        "entryPct": 1.5,
+        "stopLossPct": 2,
+        "takeProfitPct": 3.29,
+        "trailingStopPct": 1.5
+      }
+    },
+    "MEW": {
+      "symbol": "MEW",
+      "dataPoints": 169,
+      "periodHours": 168,
+      "currentPrice": 0.0006035908728680667,
+      "priceRange": {
+        "low": 0.0005591809152727543,
+        "high": 0.0006474376228915512
+      },
+      "hourlyReturnMean": 0.0111,
+      "hourlyReturnStdDev": 0.9166,
+      "dailyVolatilityPct": 4.49,
+      "maxDrawdownPct": 13.63,
+      "breakoutCount": 102,
+      "bestHoursUTC": [
+        9,
+        10,
+        17,
+        0,
+        1,
+        2
+      ],
+      "avgDailyVolumeUSD": 8578581,
+      "suggested": {
+        "entryPct": 1.5,
+        "stopLossPct": 2,
+        "takeProfitPct": 3.14,
+        "trailingStopPct": 1.5
+      }
+    },
+    "JUP": {
+      "symbol": "JUP",
+      "dataPoints": 169,
+      "periodHours": 167,
+      "currentPrice": 0.15448488146963912,
+      "priceRange": {
+        "low": 0.14124711144382368,
+        "high": 0.16588540034665997
+      },
+      "hourlyReturnMean": 0.0179,
+      "hourlyReturnStdDev": 0.8858,
+      "dailyVolatilityPct": 4.34,
+      "maxDrawdownPct": 12.62,
+      "breakoutCount": 104,
+      "bestHoursUTC": [
+        3,
+        21,
+        1,
+        2,
+        7,
+        10
+      ],
+      "avgDailyVolumeUSD": 24780644,
+      "suggested": {
+        "entryPct": 1.5,
+        "stopLossPct": 2,
+        "takeProfitPct": 3.04,
+        "trailingStopPct": 1.5
+      }
+    }
+  },
+  "dexSnapshot": {
+    "POPCAT": {
+      "pairAddress": "FRhB8L7Y9Qq41qZXYLtC2nw8An1RJfLLxRF2x9RwLLMo",
+      "dexId": "raydium",
+      "priceUsd": "0.04822",
+      "priceChange1h": -1.09,
+      "priceChange6h": -1.98,
+      "priceChange24h": -9.16,
+      "volume24h": 197133.43,
+      "liquidity": 3177236.61,
+      "txns24h": {
+        "buys": 433,
+        "sells": 692
+      }
+    },
+    "MEW": {
+      "pairAddress": "879F697iuDJGMevRkRcnW21fcXiAeLJK1ffsw2ATebce",
+      "dexId": "raydium",
+      "priceUsd": "0.0006021",
+      "priceChange1h": -1.41,
+      "priceChange6h": -1.72,
+      "priceChange24h": -5.65,
+      "volume24h": 476750.93,
+      "liquidity": 9487501.18,
+      "txns24h": {
+        "buys": 1070,
+        "sells": 1184
+      }
+    },
+    "JUP": {
+      "pairAddress": "C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz",
+      "dexId": "orca",
+      "priceUsd": "0.1545",
+      "priceChange5m": 0.04,
+      "priceChange1h": -0.46,
+      "priceChange6h": -0.86,
+      "priceChange24h": -5.51,
+      "volume24h": 1363287.87,
+      "liquidity": 314211.39,
+      "txns24h": {
+        "buys": 5948,
+        "sells": 5121
+      }
+    },
+    "RAY": {
+      "pairAddress": "6UmmUiYoBjSrhakAobJw8BvkmJtDVxaeBtbt7rxWo1mg",
+      "dexId": "raydium",
+      "priceUsd": "0.6115",
+      "priceChange5m": -2.16,
+      "priceChange1h": -0.5,
+      "priceChange6h": -2.58,
+      "priceChange24h": -6.45,
+      "volume24h": 401873.17,
+      "liquidity": 3576526.21,
+      "txns24h": {
+        "buys": 986,
+        "sells": 958
+      }
+    },
+    "JTO": {
+      "pairAddress": "G2FiE1yn9N9ZJx5e1E2LxxMnHvb1H3hCuHLPfKJ98smA",
+      "dexId": "orca",
+      "priceUsd": "0.2808",
+      "priceChange5m": -0.09,
+      "priceChange1h": -0.67,
+      "priceChange6h": 0.35,
+      "priceChange24h": -6.56,
+      "volume24h": 91785.27,
+      "liquidity": 738461.01,
+      "txns24h": {
+        "buys": 607,
+        "sells": 216
+      }
+    },
+    "PYTH": {
+      "pairAddress": "9n3dSLrERZQp95dHXywft7xV8D8xnGFLaUHtEhQVaXaC",
+      "dexId": "raydium",
+      "priceUsd": "0.05147",
+      "priceChange5m": -0.27,
+      "priceChange1h": -1.14,
+      "priceChange6h": -1.59,
+      "priceChange24h": -7.67,
+      "volume24h": 182344.43,
+      "liquidity": 218494.89,
+      "txns24h": {
+        "buys": 310,
+        "sells": 376
+      }
+    },
+    "RENDER": {
+      "pairAddress": "FZ8MJvdTPbp8juhtFCCzb7LsKunhexgzShGQ59SUJkNL",
+      "dexId": "raydium",
+      "priceUsd": "1.42",
+      "priceChange5m": -0.36,
+      "priceChange1h": -0.54,
+      "priceChange6h": -2.42,
+      "priceChange24h": -6.22,
+      "volume24h": 788039.69,
+      "liquidity": 662895.3,
+      "txns24h": {
+        "buys": 571,
+        "sells": 784
+      }
+    },
+    "TNSR": {
+      "pairAddress": "7LqL8hDYVYBgoif19fSozZurxm3ve129tfkftz6WdFkR",
+      "dexId": "meteora",
+      "priceUsd": "0.04696",
+      "priceChange1h": -1.2,
+      "priceChange6h": -2.47,
+      "priceChange24h": -5.53,
+      "volume24h": 8086.77,
+      "liquidity": 65970.58,
+      "txns24h": {
+        "buys": 111,
+        "sells": 124
+      }
+    }
+  }
+}

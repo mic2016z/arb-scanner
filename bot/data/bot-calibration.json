@@ -1,0 +1,87 @@
+{
+  "BONK": {
+    "entryPct": 1.5,
+    "stopLossPct": 2,
+    "takeProfitPct": 3.2,
+    "trailingStopPct": 1.5,
+    "dailyVolPct": 4.57,
+    "bestHoursUTC": [
+      2,
+      3,
+      10,
+      11,
+      0,
+      1
+    ],
+    "liquidity": 0,
+    "volume24h": 0
+  },
+  "WIF": {
+    "entryPct": 1.5,
+    "stopLossPct": 2,
+    "takeProfitPct": 3.41,
+    "trailingStopPct": 1.5,
+    "dailyVolPct": 4.87,
+    "bestHoursUTC": [
+      2,
+      14,
+      0,
+      3,
+      19,
+      1
+    ],
+    "liquidity": 0,
+    "volume24h": 0
+  },
+  "POPCAT": {
+    "entryPct": 1.5,
+    "stopLossPct": 2,
+    "takeProfitPct": 3.29,
+    "trailingStopPct": 1.5,
+    "dailyVolPct": 4.7,
+    "bestHoursUTC": [
+      2,
+      10,
+      11,
+      12,
+      20,
+      3
+    ],
+    "liquidity": 3177236.61,
+    "volume24h": 197133.43
+  },
+  "MEW": {
+    "entryPct": 1.5,
+    "stopLossPct": 2,
+    "takeProfitPct": 3.14,
+    "trailingStopPct": 1.5,
+    "dailyVolPct": 4.49,
+    "bestHoursUTC": [
+      9,
+      10,
+      17,
+      0,
+      1,
+      2
+    ],
+    "liquidity": 9487501.18,
+    "volume24h": 476750.93
+  },
+  "JUP": {
+    "entryPct": 1.5,
+    "stopLossPct": 2,
+    "takeProfitPct": 3.04,
+    "trailingStopPct": 1.5,
+    "dailyVolPct": 4.34,
+    "bestHoursUTC": [
+      3,
+      21,
+      1,
+      2,
+      7,
+      10
+    ],
+    "liquidity": 314211.39,
+    "volume24h": 1363287.87
+  }
+}
