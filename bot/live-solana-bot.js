@@ -7,15 +7,16 @@ import { Connection, Keypair, VersionedTransaction } from '@solana/web3.js';
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const PRIVATE_KEY = process.env.SOLANA_PRIVATE_KEY;
 const DRY_RUN = (process.env.DRY_RUN || 'false').toLowerCase() === 'true';
-const LOOP_MS = Number(process.env.BOT_LOOP_MS || 20000);
-const MIN_EDGE_BPS = Number(process.env.MIN_EDGE_BPS || 120); // 1.2%
-const SLIPPAGE_BPS = Number(process.env.SLIPPAGE_BPS || 80); // 0.8%
-const TRADE_SIZE_USDC = Number(process.env.TRADE_SIZE_USDC || 5);
-const MAX_DAILY_LOSS_USDC = Number(process.env.MAX_DAILY_LOSS_USDC || 5);
-const MIN_NET_EDGE_BPS = Number(process.env.MIN_NET_EDGE_BPS || 90); // require >=0.9% after costs
-const JUPITER_FEE_BPS = Number(process.env.JUPITER_FEE_BPS || 12); // round-trip approx buffer
-const EXTRA_SAFETY_BPS = Number(process.env.EXTRA_SAFETY_BPS || 25); // latency/MEV buffer
-const MAX_PRICE_IMPACT_PCT = Number(process.env.MAX_PRICE_IMPACT_PCT || 0.35); // per leg
+const LOOP_MS = Number(process.env.BOT_LOOP_MS || 10000); // 10s — catch fleeting arb windows
+const MIN_EDGE_BPS = Number(process.env.MIN_EDGE_BPS || 60); // 0.6% — volume makes smaller edges profitable
+const SLIPPAGE_BPS = Number(process.env.SLIPPAGE_BPS || 50); // 0.5% — tighter slippage for high-liq pairs
+const TRADE_SIZE_USDC = Number(process.env.TRADE_SIZE_USDC || 25); // 5x base — bigger trades on same edge = more profit
+const MAX_DAILY_LOSS_USDC = Number(process.env.MAX_DAILY_LOSS_USDC || 25); // scaled with trade size
+const MIN_NET_EDGE_BPS = Number(process.env.MIN_NET_EDGE_BPS || 35); // 0.35% — tighter net threshold, volume compensates
+const JUPITER_FEE_BPS = Number(process.env.JUPITER_FEE_BPS || 8); // actual Jupiter fee is ~0.04% per leg
+const EXTRA_SAFETY_BPS = Number(process.env.EXTRA_SAFETY_BPS || 12); // reduced from 25 — less drag
+const MAX_PRICE_IMPACT_PCT = Number(process.env.MAX_PRICE_IMPACT_PCT || 0.5); // 0.5% — slightly relaxed for bigger size
+const MAX_CONCURRENT_TRADES = Number(process.env.MAX_CONCURRENT_TRADES || 2); // trade multiple tokens per cycle
 
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 // Iter #6: Synced with spread-monitor — only SOL/JUP/RAY show viable edge
@@ -55,10 +56,12 @@ function log(event, data = {}) {
 }
 
 function pickTradeSizeByEdge(edgeBps) {
-  // copy proven pattern from profitable bots: size scales only when signal quality is strong
-  if (edgeBps >= 450) return Math.min(TRADE_SIZE_USDC * 2, 20);
-  if (edgeBps >= 300) return Math.min(TRADE_SIZE_USDC * 1.5, 12);
-  return TRADE_SIZE_USDC;
+  // Aggressive tiered sizing: scale up significantly on strong signals
+  if (edgeBps >= 500) return Math.min(TRADE_SIZE_USDC * 4, 200);   // exceptional signal → 4x
+  if (edgeBps >= 300) return Math.min(TRADE_SIZE_USDC * 3, 150);   // very strong → 3x
+  if (edgeBps >= 150) return Math.min(TRADE_SIZE_USDC * 2, 100);   // solid → 2x
+  if (edgeBps >= 80)  return Math.min(TRADE_SIZE_USDC * 1.5, 75);  // decent → 1.5x
+  return TRADE_SIZE_USDC;                                           // base size
 }
 
 async function jupQuote(inputMint, outputMint, amountAtomic) {
@@ -114,7 +117,8 @@ async function evaluateRoundTrip(token, tradeSizeUSDC = TRADE_SIZE_USDC) {
     const impact2Pct = Math.abs(Number(q2.priceImpactPct || 0));
     const impactBps = (impact1Pct + impact2Pct) * 10_000;
 
-    const estimatedCostBps = (SLIPPAGE_BPS * 1.2) + JUPITER_FEE_BPS + EXTRA_SAFETY_BPS + impactBps;
+    // Tighter cost model: slippage already includes buffer, don't double-pad
+    const estimatedCostBps = SLIPPAGE_BPS + JUPITER_FEE_BPS + EXTRA_SAFETY_BPS + impactBps;
     const netEdgeBps = edgeBps - estimatedCostBps;
 
     return { token, q1, q2, usdcBack, grossPnl, edgeBps, netEdgeBps, estimatedCostBps, impact1Pct, impact2Pct, tradeSizeUSDC };
@@ -238,26 +242,30 @@ async function loop() {
     try {
       const checks = await Promise.all(CANDIDATES.map((t) => evaluateRoundTrip(t, TRADE_SIZE_USDC)));
       const ranked = checks.filter(Boolean).sort((a, b) => b.netEdgeBps - a.netEdgeBps);
-      const best = ranked[0];
 
-      if (best) {
-        if (best.netEdgeBps > -10) {
+      // Log spread data for all candidates
+      const ts = new Date().toISOString();
+      for (const t of ranked) {
+        const usdcBack = TRADE_SIZE_USDC * (1 + t.netEdgeBps / 10000);
+        fs.appendFileSync(path.join(LOG_DIR, 'spread-tracker.csv'), `${ts},${t.token.symbol},${t.netEdgeBps.toFixed(2)},${usdcBack.toFixed(4)}\n`);
+      }
+
+      // Trade top N candidates that pass thresholds (not just the single best)
+      const tradeable = ranked.filter(op => op.netEdgeBps >= MIN_NET_EDGE_BPS && op.edgeBps >= MIN_EDGE_BPS);
+      if (tradeable.length > 0) {
+        let tradesThisCycle = 0;
+        for (const op of tradeable) {
+          if (tradesThisCycle >= MAX_CONCURRENT_TRADES) break;
           log('best_opportunity', {
-            symbol: best.token.symbol,
-            edgeBps: Number(best.edgeBps.toFixed(2)),
-            netEdgeBps: Number(best.netEdgeBps.toFixed(2)),
-            estimatedCostBps: Number(best.estimatedCostBps.toFixed(2)),
-            expectedPnl: Number(best.grossPnl.toFixed(4)),
+            symbol: op.token.symbol,
+            edgeBps: Number(op.edgeBps.toFixed(2)),
+            netEdgeBps: Number(op.netEdgeBps.toFixed(2)),
+            estimatedCostBps: Number(op.estimatedCostBps.toFixed(2)),
+            expectedPnl: Number(op.grossPnl.toFixed(4)),
           });
+          const traded = await maybeTrade(op);
+          if (traded) tradesThisCycle++;
         }
-        // Iter #6: Write one row per token (matches spread-monitor CSV format)
-        const ts = new Date().toISOString();
-        for (const t of ranked) {
-          const usdcBack = TRADE_SIZE_USDC * (1 + t.netEdgeBps / 10000);
-          fs.appendFileSync(path.join(LOG_DIR, 'spread-tracker.csv'), `${ts},${t.token.symbol},${t.netEdgeBps.toFixed(2)},${usdcBack.toFixed(4)}\n`);
-        }
-
-        await maybeTrade(best);
       } else {
         log('no_opportunity');
       }

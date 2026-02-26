@@ -8,22 +8,22 @@ import { Connection, Keypair, VersionedTransaction } from '@solana/web3.js';
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const PRIVATE_KEY = process.env.SOLANA_PRIVATE_KEY;
 const DRY_RUN = (process.env.DRY_RUN || 'true').toLowerCase() === 'true';
-const LOOP_MS = Number(process.env.BOT_LOOP_MS || 15000);
-const TRADE_SIZE_USDC = Number(process.env.TRADE_SIZE_USDC || 5);
-const MAX_DAILY_LOSS_USDC = Number(process.env.MAX_DAILY_LOSS_USDC || 3);
-const MAX_OPEN_POSITIONS = Number(process.env.MAX_OPEN_POSITIONS || 2);
-const SLIPPAGE_BPS = Number(process.env.SLIPPAGE_BPS || 100);
+const LOOP_MS = Number(process.env.BOT_LOOP_MS || 8000); // 8s — faster reaction to momentum shifts
+const TRADE_SIZE_USDC = Number(process.env.TRADE_SIZE_USDC || 25); // 5x base for high-volume
+const MAX_DAILY_LOSS_USDC = Number(process.env.MAX_DAILY_LOSS_USDC || 15); // scaled with size
+const MAX_OPEN_POSITIONS = Number(process.env.MAX_OPEN_POSITIONS || 4); // 2x more concurrent positions
+const SLIPPAGE_BPS = Number(process.env.SLIPPAGE_BPS || 75); // tighter slippage — meme coins have deep pools
 
 // Momentum entry thresholds (defaults, overridden per-token by calibration)
-const MIN_PRICE_CHANGE_PCT = Number(process.env.MIN_PRICE_CHANGE_PCT || 1.5);
-const LOOKBACK_SAMPLES = Number(process.env.LOOKBACK_SAMPLES || 12);
-const VOLUME_SPIKE_MULT = Number(process.env.VOLUME_SPIKE_MULT || 1.5);
+const MIN_PRICE_CHANGE_PCT = Number(process.env.MIN_PRICE_CHANGE_PCT || 1.2); // slightly lower entry bar
+const LOOKBACK_SAMPLES = Number(process.env.LOOKBACK_SAMPLES || 10); // shorter lookback for faster signals
+const VOLUME_SPIKE_MULT = Number(process.env.VOLUME_SPIKE_MULT || 1.3); // catch more volume spikes
 
-// Exit thresholds (defaults, overridden per-token by calibration)
-const TRAILING_STOP_PCT = Number(process.env.TRAILING_STOP_PCT || 1.5);
-const TAKE_PROFIT_PCT = Number(process.env.TAKE_PROFIT_PCT || 3.2);
-const MAX_HOLD_MS = Number(process.env.MAX_HOLD_MS || 600_000);
-const STOP_LOSS_PCT = Number(process.env.STOP_LOSS_PCT || 2.0);
+// Exit thresholds — asymmetric risk/reward: let winners run, cut losers fast
+const TRAILING_STOP_PCT = Number(process.env.TRAILING_STOP_PCT || 1.2); // tighter trailing — lock in gains sooner
+const TAKE_PROFIT_PCT = Number(process.env.TAKE_PROFIT_PCT || 4.5); // higher TP — let big moves run
+const MAX_HOLD_MS = Number(process.env.MAX_HOLD_MS || 480_000); // 8 min — slightly tighter for high volume
+const STOP_LOSS_PCT = Number(process.env.STOP_LOSS_PCT || 1.8); // tighter SL — cut losers faster
 
 // ── Load calibration from historical data ───────────────────────────────
 const CALIBRATION_PATH = path.join(process.cwd(), 'bot', 'data', 'bot-calibration.json');
@@ -169,9 +169,29 @@ function isMomentumEntry(symbol) {
   return true;
 }
 
+// ── Dynamic position sizing ──────────────────────────────────────────────
+function pickMomentumSize(symbol) {
+  const changePct = getRecentPriceChangePct(symbol);
+  const vol = calibration[symbol]?.dailyVolPct || 5;
+  const liq = calibration[symbol]?.liquidity || 0;
+
+  // Signal strength: how much of daily vol has moved in our lookback window
+  const signalStrength = changePct / vol;
+
+  // Scale size by signal quality, but respect liquidity
+  let multiplier = 1;
+  if (signalStrength >= 0.6) multiplier = 2.5;       // very strong breakout
+  else if (signalStrength >= 0.4) multiplier = 2;     // solid momentum
+  else if (signalStrength >= 0.3) multiplier = 1.5;   // decent move
+
+  // Cap size relative to token liquidity (never more than 0.5% of pool)
+  const maxByLiquidity = liq > 0 ? liq * 0.005 : TRADE_SIZE_USDC * 4;
+  return Math.min(TRADE_SIZE_USDC * multiplier, maxByLiquidity, 150);
+}
+
 // ── Position management ─────────────────────────────────────────────────
 async function openPosition(token) {
-  const sizeUSDC = TRADE_SIZE_USDC;
+  const sizeUSDC = pickMomentumSize(token.symbol);
   const usdcAtomic = Math.floor(sizeUSDC * 1_000_000);
 
   const q = await jupQuote(USDC_MINT, token.mint, usdcAtomic);
@@ -314,7 +334,7 @@ const cooldowns = {}; // symbol -> timestamp of last exit
 function isOnCooldown(symbol) {
   const cd = cooldowns[symbol];
   if (!cd) return false;
-  return (Date.now() - cd) < 120_000; // 2 min cooldown after exit
+  return (Date.now() - cd) < 45_000; // 45s cooldown — fast re-entry for high volume
 }
 
 // ── Main loop ───────────────────────────────────────────────────────────
@@ -349,13 +369,18 @@ async function loop() {
     }
 
     try {
-      // 1. Sample all prices
-      for (const token of CANDIDATES) {
-        const sample = await samplePrice(token);
-        if (!sample) continue;
+      // 1. Sample all prices in PARALLEL — 10x faster than sequential
+      const samples = await Promise.allSettled(
+        CANDIDATES.map(async (token) => {
+          const sample = await samplePrice(token);
+          return { token, sample };
+        })
+      );
+      for (const result of samples) {
+        if (result.status !== 'fulfilled' || !result.value.sample) continue;
+        const { token, sample } = result.value;
         if (!priceHistory[token.symbol]) priceHistory[token.symbol] = [];
         priceHistory[token.symbol].push(sample);
-        // Keep only LOOKBACK_SAMPLES
         if (priceHistory[token.symbol].length > LOOKBACK_SAMPLES) {
           priceHistory[token.symbol] = priceHistory[token.symbol].slice(-LOOKBACK_SAMPLES);
         }
@@ -370,14 +395,17 @@ async function loop() {
       if (positions.length < MAX_OPEN_POSITIONS) {
         const activeSymbols = new Set(positions.map(p => p.symbol));
 
+        let entriesThisCycle = 0;
+        const maxEntriesPerCycle = 2; // allow up to 2 entries per cycle for high throughput
         for (const token of CANDIDATES) {
           if (activeSymbols.has(token.symbol)) continue;
           if (isOnCooldown(token.symbol)) continue;
           if (positions.length >= MAX_OPEN_POSITIONS) break;
+          if (entriesThisCycle >= maxEntriesPerCycle) break;
 
           if (isMomentumEntry(token.symbol)) {
             await openPosition(token);
-            break; // one entry per cycle max
+            entriesThisCycle++;
           }
         }
       }
