@@ -1,0 +1,141 @@
+// Vercel Serverless Function — fetches prices from 5 exchanges
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 's-maxage=5');
+
+  const TOKENS = ['BTC','ETH','SOL','XRP','DOGE','ADA','AVAX','DOT','LINK','MATIC','UNI','AAVE','ARB','OP','SUI'];
+  
+  const FEES = {
+    Binance: 0.1, Bybit: 0.1, Coinbase: 0.6, Kraken: 0.26, KuCoin: 0.1
+  };
+
+  const KRAKEN_MAP = {
+    BTC: 'XXBTZUSD', ETH: 'XETHZUSD', SOL: 'SOLUSD', XRP: 'XXRPZUSD',
+    DOGE: 'XDGUSD', ADA: 'ADAUSD', AVAX: 'AVAXUSD', DOT: 'DOTUSD',
+    LINK: 'LINKUSD', MATIC: 'MATICUSD', UNI: 'UNIUSD', AAVE: 'AAVEUSD',
+    ARB: 'ARBUSD', OP: 'OPUSD', SUI: 'SUIUSD'
+  };
+
+  async function fetchJSON(url, timeout = 8000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const r = await fetch(url, { signal: controller.signal });
+      clearTimeout(id);
+      return await r.json();
+    } catch { clearTimeout(id); return null; }
+  }
+
+  // Fetch all exchanges in parallel
+  const [binance, bybit, coinbase, kraken, kucoin] = await Promise.all([
+    fetchJSON('https://api.binance.com/api/v3/ticker/price'),
+    fetchJSON('https://api.bybit.com/v5/market/tickers?category=spot'),
+    fetchJSON('https://api.coinbase.com/v2/exchange-rates?currency=USD'),
+    fetchJSON('https://api.kraken.com/0/public/Ticker?pair=' + Object.values(KRAKEN_MAP).join(',')),
+    fetchJSON('https://api.kucoin.com/api/v1/market/allTickers'),
+  ]);
+
+  const prices = {};
+
+  // Binance
+  if (binance) {
+    for (const t of TOKENS) {
+      const sym = t + 'USDT';
+      const item = binance.find(x => x.symbol === sym);
+      if (item) {
+        prices[t] = prices[t] || {};
+        prices[t].Binance = parseFloat(item.price);
+      }
+    }
+  }
+
+  // Bybit
+  if (bybit?.result?.list) {
+    for (const t of TOKENS) {
+      const sym = t + 'USDT';
+      const item = bybit.result.list.find(x => x.symbol === sym);
+      if (item) {
+        prices[t] = prices[t] || {};
+        prices[t].Bybit = parseFloat(item.lastPrice);
+      }
+    }
+  }
+
+  // Coinbase (rates are inverse: USD per 1 unit of currency)
+  if (coinbase?.data?.rates) {
+    for (const t of TOKENS) {
+      const rate = coinbase.data.rates[t];
+      if (rate) {
+        prices[t] = prices[t] || {};
+        prices[t].Coinbase = 1 / parseFloat(rate);
+      }
+    }
+  }
+
+  // Kraken
+  if (kraken?.result) {
+    for (const t of TOKENS) {
+      const pair = KRAKEN_MAP[t];
+      // Kraken keys can vary, try direct and alt
+      const data = kraken.result[pair] || Object.values(kraken.result).find((v, i) => Object.keys(kraken.result)[i].includes(t));
+      if (data?.c?.[0]) {
+        prices[t] = prices[t] || {};
+        prices[t].Kraken = parseFloat(data.c[0]);
+      }
+    }
+  }
+
+  // KuCoin
+  if (kucoin?.data?.ticker) {
+    for (const t of TOKENS) {
+      const sym = t + '-USDT';
+      const item = kucoin.data.ticker.find(x => x.symbol === sym);
+      if (item?.last) {
+        prices[t] = prices[t] || {};
+        prices[t].KuCoin = parseFloat(item.last);
+      }
+    }
+  }
+
+  // Calculate arbitrage opportunities
+  const opportunities = [];
+  for (const token of TOKENS) {
+    const tp = prices[token];
+    if (!tp) continue;
+    const exchanges = Object.entries(tp);
+    for (let i = 0; i < exchanges.length; i++) {
+      for (let j = i + 1; j < exchanges.length; j++) {
+        const [exA, priceA] = exchanges[i];
+        const [exB, priceB] = exchanges[j];
+        if (!priceA || !priceB) continue;
+        const low = Math.min(priceA, priceB);
+        const high = Math.max(priceA, priceB);
+        const buyEx = priceA < priceB ? exA : exB;
+        const sellEx = priceA < priceB ? exB : exA;
+        const grossSpread = ((high - low) / low) * 100;
+        const totalFees = FEES[buyEx] + FEES[sellEx];
+        const netSpread = grossSpread - totalFees;
+        opportunities.push({
+          token, buyEx, sellEx,
+          buyPrice: low, sellPrice: high,
+          grossSpread: +grossSpread.toFixed(4),
+          fees: totalFees,
+          netSpread: +netSpread.toFixed(4),
+          profitPer1000: +((netSpread / 100) * 1000).toFixed(2),
+          timestamp: Date.now()
+        });
+      }
+    }
+  }
+
+  opportunities.sort((a, b) => b.netSpread - a.netSpread);
+
+  res.status(200).json({
+    timestamp: Date.now(),
+    tokenCount: TOKENS.length,
+    exchangeCount: 5,
+    opportunities,
+    prices,
+    fees: FEES
+  });
+}

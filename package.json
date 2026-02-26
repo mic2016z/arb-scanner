@@ -1,0 +1,9 @@
+{
+  "name": "crypto-arb-scanner",
+  "version": "1.0.0",
+  "description": "Real-time crypto arbitrage scanner across exchanges",
+  "scripts": {
+    "start": "node api/prices.js"
+  },
+  "dependencies": {}
+}

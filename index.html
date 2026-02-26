@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚡ Crypto Arbitrage Scanner</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a1a; --surface: #111128; --border: #1a1a3e;
+  --green: #00ff88; --yellow: #ffdd00; --red: #ff4466;
+  --cyan: #00ddff; --dim: #555580; --text: #e0e0ff;
+}
+body { background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace; min-height: 100vh; }
+.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+header { text-align: center; padding: 30px 0 20px; }
+h1 { font-size: 2.5em; color: var(--green); text-shadow: 0 0 30px rgba(0,255,136,0.3); letter-spacing: 3px; }
+.subtitle { color: var(--dim); margin-top: 5px; font-size: 0.9em; }
+.stats { display: flex; gap: 20px; justify-content: center; margin: 20px 0; flex-wrap: wrap; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 15px 25px; text-align: center; min-width: 160px; }
+.stat-value { font-size: 2em; font-weight: 700; color: var(--green); }
+.stat-label { color: var(--dim); font-size: 0.75em; margin-top: 4px; text-transform: uppercase; letter-spacing: 2px; }
+.controls { display: flex; gap: 15px; align-items: center; justify-content: center; margin: 20px 0; flex-wrap: wrap; }
+.controls label { color: var(--dim); font-size: 0.85em; }
+.controls input, .controls select { background: var(--surface); border: 1px solid var(--border); color: var(--green); padding: 8px 12px; border-radius: 6px; font-family: inherit; font-size: 0.85em; }
+.scanner-bar { height: 3px; background: linear-gradient(90deg, transparent, var(--green), transparent); margin: 20px 0; animation: scan 2s linear infinite; border-radius: 2px; }
+@keyframes scan { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+th { background: var(--surface); color: var(--cyan); padding: 12px 10px; text-align: left; border-bottom: 2px solid var(--border); position: sticky; top: 0; cursor: pointer; user-select: none; white-space: nowrap; }
+th:hover { color: var(--green); }
+td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.03); white-space: nowrap; }
+tr:hover { background: rgba(0,255,136,0.03); }
+tr.hot { background: rgba(0,255,136,0.06); box-shadow: inset 0 0 20px rgba(0,255,136,0.05); }
+tr.hot td:first-child { border-left: 3px solid var(--green); }
+.pos { color: var(--green); } .neg { color: var(--red); } .mid { color: var(--yellow); }
+.token { font-weight: 700; color: var(--cyan); font-size: 1em; }
+.exchange { color: var(--dim); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 700; }
+.badge-hot { background: rgba(0,255,136,0.15); color: var(--green); border: 1px solid rgba(0,255,136,0.3); }
+.badge-mid { background: rgba(255,221,0,0.1); color: var(--yellow); border: 1px solid rgba(255,221,0,0.2); }
+.badge-cold { background: rgba(255,68,102,0.1); color: var(--red); border: 1px solid rgba(255,68,102,0.2); }
+.price { font-variant-numeric: tabular-nums; }
+.profit { font-weight: 700; }
+.last-update { text-align: center; color: var(--dim); font-size: 0.75em; margin-top: 15px; }
+.history { margin-top: 40px; }
+.history h2 { color: var(--cyan); font-size: 1.2em; margin-bottom: 10px; }
+#no-data { text-align: center; padding: 60px; color: var(--dim); font-size: 1.2em; }
+.arrow { color: var(--green); margin: 0 5px; }
+@media (max-width: 768px) {
+  h1 { font-size: 1.5em; }
+  .stats { gap: 10px; }
+  .stat { min-width: 120px; padding: 10px 15px; }
+  .stat-value { font-size: 1.5em; }
+  table { font-size: 0.75em; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>⚡ ARBITRAGE SCANNER</h1>
+    <div class="subtitle">Real-time cross-exchange crypto price monitoring</div>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-value" id="opp-count">—</div><div class="stat-label">Opportunities</div></div>
+    <div class="stat"><div class="stat-value" id="best-spread">—</div><div class="stat-label">Best Spread %</div></div>
+    <div class="stat"><div class="stat-value" id="tokens-tracked">15</div><div class="stat-label">Tokens</div></div>
+    <div class="stat"><div class="stat-value" id="exchanges">5</div><div class="stat-label">Exchanges</div></div>
+    <div class="stat"><div class="stat-value" id="best-profit">—</div><div class="stat-label">Best $/1K</div></div>
+  </div>
+
+  <div class="controls">
+    <label>Min Spread %: <input type="number" id="min-spread" value="0" step="0.1" min="0" max="10"></label>
+    <label>Token: <select id="token-filter"><option value="">All</option></select></label>
+    <label>Show: <select id="row-limit"><option value="50">50</option><option value="100">100</option><option value="200">200</option><option value="999">All</option></select></label>
+  </div>
+
+  <div class="scanner-bar"></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th data-sort="token">Token</th>
+          <th data-sort="buyEx">Buy On</th>
+          <th data-sort="buyPrice">Buy Price</th>
+          <th></th>
+          <th data-sort="sellEx">Sell On</th>
+          <th data-sort="sellPrice">Sell Price</th>
+          <th data-sort="grossSpread">Gross %</th>
+          <th data-sort="fees">Fees %</th>
+          <th data-sort="netSpread">Net %</th>
+          <th data-sort="profitPer1000">$/1K</th>
+          <th>Signal</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+    <div id="no-data">⏳ Scanning exchanges...</div>
+  </div>
+
+  <div class="last-update">Last update: <span id="last-time">—</span> | Refreshes every 10s</div>
+
+  <div class="history">
+    <h2>🏆 Best Opportunities Found (Last 100)</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th><th>Token</th><th>Buy</th><th>Sell</th><th>Net %</th><th>$/1K</th>
+          </tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const tbody = document.getElementById('table-body');
+const noData = document.getElementById('no-data');
+const histBody = document.getElementById('history-body');
+const tokenFilter = document.getElementById('token-filter');
+
+let allData = [];
+let history = JSON.parse(localStorage.getItem('arb-history') || '[]');
+let sortKey = 'netSpread', sortDir = -1;
+
+// Column sorting
+document.querySelectorAll('th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (sortKey === key) sortDir *= -1;
+    else { sortKey = key; sortDir = -1; }
+    render();
+  });
+});
+
+function fmt(n, dec = 2) {
+  if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (n >= 1) return n.toFixed(dec);
+  if (n >= 0.01) return n.toFixed(4);
+  return n.toFixed(6);
+}
+
+function render() {
+  const minSpread = parseFloat(document.getElementById('min-spread').value) || 0;
+  const tokenF = tokenFilter.value;
+  const limit = parseInt(document.getElementById('row-limit').value);
+
+  let filtered = allData.filter(o => o.netSpread >= minSpread);
+  if (tokenF) filtered = filtered.filter(o => o.token === tokenF);
+  
+  filtered.sort((a, b) => {
+    const va = a[sortKey], vb = b[sortKey];
+    if (typeof va === 'string') return sortDir * va.localeCompare(vb);
+    return sortDir * (va - vb);
+  });
+
+  filtered = filtered.slice(0, limit);
+
+  const hotCount = allData.filter(o => o.netSpread > 0.5).length;
+  document.getElementById('opp-count').textContent = hotCount;
+  const best = allData[0];
+  document.getElementById('best-spread').textContent = best ? best.netSpread.toFixed(2) + '%' : '—';
+  document.getElementById('best-profit').textContent = best ? '$' + best.profitPer1000.toFixed(2) : '—';
+
+  if (!filtered.length) { tbody.innerHTML = ''; noData.style.display = 'block'; return; }
+  noData.style.display = 'none';
+
+  tbody.innerHTML = filtered.map(o => {
+    const cls = o.netSpread > 0.5 ? 'hot' : '';
+    const spreadCls = o.netSpread > 0.5 ? 'pos' : o.netSpread > 0 ? 'mid' : 'neg';
+    const badge = o.netSpread > 0.5 ? '<span class="badge badge-hot">HOT</span>' :
+                  o.netSpread > 0 ? '<span class="badge badge-mid">OK</span>' :
+                  '<span class="badge badge-cold">LOW</span>';
+    return `<tr class="${cls}">
+      <td class="token">${o.token}</td>
+      <td class="exchange">${o.buyEx}</td>
+      <td class="price">$${fmt(o.buyPrice)}</td>
+      <td class="arrow">→</td>
+      <td class="exchange">${o.sellEx}</td>
+      <td class="price">$${fmt(o.sellPrice)}</td>
+      <td>${o.grossSpread.toFixed(2)}%</td>
+      <td class="neg">${o.fees.toFixed(2)}%</td>
+      <td class="${spreadCls} profit">${o.netSpread.toFixed(2)}%</td>
+      <td class="${spreadCls} profit">$${o.profitPer1000.toFixed(2)}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderHistory() {
+  histBody.innerHTML = history.slice(0, 100).map(o => `<tr>
+    <td>${new Date(o.timestamp).toLocaleTimeString()}</td>
+    <td class="token">${o.token}</td>
+    <td class="exchange">${o.buyEx}</td>
+    <td class="exchange">${o.sellEx}</td>
+    <td class="pos">${o.netSpread.toFixed(2)}%</td>
+    <td class="pos">$${o.profitPer1000.toFixed(2)}</td>
+  </tr>`).join('');
+}
+
+async function fetchData() {
+  try {
+    const r = await fetch('/api/prices');
+    const data = await r.json();
+    allData = data.opportunities;
+    
+    // Update token filter options
+    const tokens = [...new Set(allData.map(o => o.token))].sort();
+    const current = tokenFilter.value;
+    tokenFilter.innerHTML = '<option value="">All</option>' + tokens.map(t => `<option value="${t}">${t}</option>`).join('');
+    tokenFilter.value = current;
+
+    // Add hot opportunities to history
+    const hot = allData.filter(o => o.netSpread > 0.5);
+    if (hot.length) {
+      history = [...hot, ...history].slice(0, 100);
+      localStorage.setItem('arb-history', JSON.stringify(history));
+    }
+
+    document.getElementById('last-time').textContent = new Date().toLocaleTimeString();
+    render();
+    renderHistory();
+  } catch (e) {
+    console.error('Fetch error:', e);
+  }
+}
+
+document.getElementById('min-spread').addEventListener('input', render);
+tokenFilter.addEventListener('change', render);
+document.getElementById('row-limit').addEventListener('change', render);
+
+fetchData();
+setInterval(fetchData, 10000);
+renderHistory();
+</script>
+</body>
+</html>
