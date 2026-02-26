@@ -144,6 +144,10 @@ tr.hot td:first-child { border-left: 3px solid var(--green); }
         <button id="btn-stop">Stop Bot</button>
         <button id="btn-reset">Reset</button>
       </div>
+
+      <h2 style="margin-top:8px;">📡 Live Scan Feedback</h2>
+      <div id="scan-status" style="font-size:.8em; line-height:1.6; margin-bottom:10px; color:var(--dim)">Waiting for scan...</div>
+
       <div id="paper-log"></div>
     </div>
   </div>
@@ -342,6 +346,18 @@ async function fetchData() {
     const r = await fetch('/api/prices');
     const data = await r.json();
     allData = data.opportunities || [];
+
+    const scanBox = document.getElementById('scan-status');
+    if (scanBox && data.scan) {
+      const entries = Object.entries(data.scan).map(([name, s]) => {
+        const icon = s.ok ? '🟢' : '🔴';
+        return `${icon} ${name}: ${s.matched} pairs (${s.ms}ms)`;
+      });
+      const top = data.topSignal
+        ? `Top: ${data.topSignal.token} ${data.topSignal.buyEx}→${data.topSignal.sellEx} (${Number(data.topSignal.netSpread).toFixed(2)}%)`
+        : 'Top: none';
+      scanBox.innerHTML = entries.join('<br>') + `<br><span class="mid">${top}</span>`;
+    }
 
     const tokens = [...new Set(allData.map(o => o.token))].sort();
     const current = tokenFilter.value;

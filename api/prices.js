@@ -19,15 +19,21 @@ export default async function handler(req, res) {
   async function fetchJSON(url, timeout = 8000) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
+    const started = Date.now();
     try {
       const r = await fetch(url, { signal: controller.signal });
+      const ms = Date.now() - started;
       clearTimeout(id);
-      return await r.json();
-    } catch { clearTimeout(id); return null; }
+      if (!r.ok) return { ok: false, data: null, ms, status: r.status };
+      return { ok: true, data: await r.json(), ms, status: r.status };
+    } catch {
+      clearTimeout(id);
+      return { ok: false, data: null, ms: Date.now() - started, status: 0 };
+    }
   }
 
   // Fetch all exchanges in parallel
-  const [binance, bybit, coinbase, kraken, kucoin] = await Promise.all([
+  const [binanceR, bybitR, coinbaseR, krakenR, kucoinR] = await Promise.all([
     fetchJSON('https://api.binance.com/api/v3/ticker/price'),
     fetchJSON('https://api.bybit.com/v5/market/tickers?category=spot'),
     fetchJSON('https://api.coinbase.com/v2/exchange-rates?currency=USD'),
@@ -35,7 +41,14 @@ export default async function handler(req, res) {
     fetchJSON('https://api.kucoin.com/api/v1/market/allTickers'),
   ]);
 
+  const binance = binanceR.data;
+  const bybit = bybitR.data;
+  const coinbase = coinbaseR.data;
+  const kraken = krakenR.data;
+  const kucoin = kucoinR.data;
+
   const prices = {};
+  const sourceMatchCount = { Binance: 0, Bybit: 0, Coinbase: 0, Kraken: 0, KuCoin: 0 };
 
   // Binance
   if (binance) {
@@ -45,6 +58,7 @@ export default async function handler(req, res) {
       if (item) {
         prices[t] = prices[t] || {};
         prices[t].Binance = parseFloat(item.price);
+        sourceMatchCount.Binance += 1;
       }
     }
   }
@@ -57,6 +71,7 @@ export default async function handler(req, res) {
       if (item) {
         prices[t] = prices[t] || {};
         prices[t].Bybit = parseFloat(item.lastPrice);
+        sourceMatchCount.Bybit += 1;
       }
     }
   }
@@ -68,6 +83,7 @@ export default async function handler(req, res) {
       if (rate) {
         prices[t] = prices[t] || {};
         prices[t].Coinbase = 1 / parseFloat(rate);
+        sourceMatchCount.Coinbase += 1;
       }
     }
   }
@@ -81,6 +97,7 @@ export default async function handler(req, res) {
       if (data?.c?.[0]) {
         prices[t] = prices[t] || {};
         prices[t].Kraken = parseFloat(data.c[0]);
+        sourceMatchCount.Kraken += 1;
       }
     }
   }
@@ -93,6 +110,7 @@ export default async function handler(req, res) {
       if (item?.last) {
         prices[t] = prices[t] || {};
         prices[t].KuCoin = parseFloat(item.last);
+        sourceMatchCount.KuCoin += 1;
       }
     }
   }
@@ -130,12 +148,22 @@ export default async function handler(req, res) {
 
   opportunities.sort((a, b) => b.netSpread - a.netSpread);
 
+  const scan = {
+    Binance: { ok: binanceR.ok, ms: binanceR.ms, status: binanceR.status, matched: sourceMatchCount.Binance },
+    Bybit: { ok: bybitR.ok, ms: bybitR.ms, status: bybitR.status, matched: sourceMatchCount.Bybit },
+    Coinbase: { ok: coinbaseR.ok, ms: coinbaseR.ms, status: coinbaseR.status, matched: sourceMatchCount.Coinbase },
+    Kraken: { ok: krakenR.ok, ms: krakenR.ms, status: krakenR.status, matched: sourceMatchCount.Kraken },
+    KuCoin: { ok: kucoinR.ok, ms: kucoinR.ms, status: kucoinR.status, matched: sourceMatchCount.KuCoin },
+  };
+
   res.status(200).json({
     timestamp: Date.now(),
     tokenCount: TOKENS.length,
     exchangeCount: 5,
     opportunities,
     prices,
-    fees: FEES
+    fees: FEES,
+    scan,
+    topSignal: opportunities[0] || null
   });
 }
