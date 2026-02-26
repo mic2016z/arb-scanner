@@ -64,11 +64,18 @@ tr.hot td:first-child { border-left: 3px solid var(--green); }
 .paper-kpi .lbl { font-size: 0.7em; color: var(--dim); text-transform: uppercase; }
 .paper-kpi .val { font-size: 1.1em; color: var(--green); font-weight:700; }
 .paper-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
-#paper-log { max-height: 420px; overflow: auto; font-size: 0.75em; line-height: 1.4; }
+#paper-log { max-height: 220px; overflow: auto; font-size: 0.75em; line-height: 1.4; }
 .log-item { padding: 6px; border-bottom: 1px solid rgba(255,255,255,0.04); }
 .log-time { color: var(--dim); margin-right: 8px; }
 .log-win { color: var(--green); }
 .log-loss { color: var(--red); }
+#trade-ledger-wrap { max-height: 260px; overflow:auto; border:1px solid var(--border); border-radius:8px; margin-bottom:10px; }
+#trade-ledger { width:100%; border-collapse: collapse; font-size:.72em; }
+#trade-ledger th, #trade-ledger td { padding:6px 7px; border-bottom:1px solid rgba(255,255,255,.04); white-space:nowrap; }
+#trade-ledger th { position: sticky; top:0; background:#0f1024; color:var(--cyan); }
+#trade-ledger tr.current { background: rgba(0,221,255,.09); }
+#trade-ledger td.pos { color: var(--green); }
+#trade-ledger td.neg { color: var(--red); }
 @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
 @media (max-width: 768px) {
   h1 { font-size: 1.4em; }
@@ -155,6 +162,14 @@ tr.hot td:first-child { border-left: 3px solid var(--green); }
         <button id="btn-reset">Reset</button>
       </div>
 
+      <h2 style="margin-top:8px;">📒 Trade Ledger (Latest centered)</h2>
+      <div id="trade-ledger-wrap">
+        <table id="trade-ledger">
+          <thead><tr><th>Time</th><th>Token</th><th>Route</th><th>Size</th><th>Edge%</th><th>P/L</th><th>Bal</th></tr></thead>
+          <tbody id="trade-ledger-body"></tbody>
+        </table>
+      </div>
+
       <h2 style="margin-top:8px;">📡 Live Scan Feedback</h2>
       <div id="scan-status" style="font-size:.8em; line-height:1.6; margin-bottom:10px; color:var(--dim)">Waiting for scan...</div>
 
@@ -197,8 +212,10 @@ let bot = JSON.parse(localStorage.getItem('paper-bot') || 'null') || {
   wins: 0,
   losses: 0,
   best: 0,
-  logs: []
+  logs: [],
+  tradeHistory: []
 };
+if (!bot.tradeHistory) bot.tradeHistory = [];
 
 function saveBot() { localStorage.setItem('paper-bot', JSON.stringify(bot)); }
 function addBotLog(msg, type='mid') {
@@ -226,6 +243,25 @@ function renderBot() {
     main.style.color = bot.pnl >= 0 ? 'var(--green)' : 'var(--red)';
     const wr = bot.trades ? ((bot.wins / bot.trades) * 100).toFixed(1) : '0.0';
     statement.textContent = `Trades: ${bot.trades} | Wins: ${bot.wins} | Losses: ${bot.losses} | Win rate: ${wr}%`;
+  }
+
+  const ledgerBody = document.getElementById('trade-ledger-body');
+  if (ledgerBody) {
+    ledgerBody.innerHTML = bot.tradeHistory.map((t, idx) => `<tr class="${idx===0?'current':''}">
+      <td>${new Date(t.time).toLocaleTimeString()}</td>
+      <td class="token">${t.token}</td>
+      <td>${t.buyEx}→${t.sellEx}</td>
+      <td>$${t.size.toFixed(2)}</td>
+      <td>${t.edge.toFixed(2)}</td>
+      <td class="${t.pnl>=0?'pos':'neg'}">${t.pnl>=0?'+':''}$${t.pnl.toFixed(2)}</td>
+      <td>$${t.balance.toFixed(2)}</td>
+    </tr>`).join('');
+
+    const wrap = document.getElementById('trade-ledger-wrap');
+    const currentRow = ledgerBody.querySelector('tr.current');
+    if (wrap && currentRow) {
+      wrap.scrollTop = Math.max(0, currentRow.offsetTop - (wrap.clientHeight / 2) + (currentRow.clientHeight / 2));
+    }
   }
 
   paperLog.innerHTML = bot.logs.map(l => `<div class="log-item"><span class="log-time">${new Date(l.t).toLocaleTimeString()}</span><span class="${l.type==='win'?'log-win':l.type==='loss'?'log-loss':'mid'}">${l.msg}</span></div>`).join('');
@@ -258,6 +294,18 @@ function maybePaperTrade() {
   bot.trades += 1;
   if (win) bot.wins += 1; else bot.losses += 1;
   if (pnl > bot.best) bot.best = pnl;
+
+  bot.tradeHistory.unshift({
+    time: Date.now(),
+    token: pick.token,
+    buyEx: pick.buyEx,
+    sellEx: pick.sellEx,
+    size: tradeSize,
+    edge: pick.netSpread,
+    pnl,
+    balance: bot.balance
+  });
+  bot.tradeHistory = bot.tradeHistory.slice(0, 200);
 
   const msg = `${pick.token} ${pick.buyEx}→${pick.sellEx} | size $${tradeSize.toFixed(2)} | net ${pick.netSpread.toFixed(2)}% | ${pnl>=0?'+':''}$${pnl.toFixed(2)}`;
   addBotLog(msg, pnl >= 0 ? 'win' : 'loss');
@@ -421,7 +469,7 @@ document.getElementById('btn-stop').addEventListener('click', () => {
 
 document.getElementById('btn-reset').addEventListener('click', () => {
   const start = parseFloat(document.getElementById('start-balance').value) || 70;
-  bot = { running:false, startBalance:start, balance:start, pnl:0, trades:0, wins:0, losses:0, best:0, logs:[] };
+  bot = { running:false, startBalance:start, balance:start, pnl:0, trades:0, wins:0, losses:0, best:0, logs:[], tradeHistory:[] };
   saveBot();
   renderBot();
 });
