@@ -141,6 +141,11 @@ export default async function handler(req, res) {
         const buyEx = priceA < priceB ? exA : exB;
         const sellEx = priceA < priceB ? exB : exA;
         const grossSpread = ((high - low) / low) * 100;
+
+        // Outlier guard: skip obviously bad/stale feed mismatches
+        // Real cross-exchange spot arb is usually small; huge values are almost always bad data.
+        if (!Number.isFinite(grossSpread) || grossSpread < 0 || grossSpread > 5) continue;
+
         const totalFees = FEES[buyEx] + FEES[sellEx];
         const netSpread = grossSpread - totalFees;
         opportunities.push({
