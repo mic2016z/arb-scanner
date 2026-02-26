@@ -133,6 +133,8 @@ tr.hot td:first-child { border-left: 3px solid var(--green); }
         <div class="paper-kpi"><div class="lbl">Win Rate</div><div class="val" id="bot-winrate">0%</div></div>
         <div class="paper-kpi"><div class="lbl">Trades</div><div class="val" id="bot-trades">0</div></div>
         <div class="paper-kpi"><div class="lbl">Best Trade</div><div class="val" id="bot-best">$0.00</div></div>
+        <div class="paper-kpi"><div class="lbl">Live Wallet Total</div><div class="val" id="live-total">—</div></div>
+        <div class="paper-kpi"><div class="lbl">Live SOL / USDC</div><div class="val" id="live-split">—</div></div>
       </div>
       <div class="paper-controls">
         <label>Start $ <input id="start-balance" type="number" value="70" min="10" step="5" style="width:90px"></label>
@@ -325,6 +327,16 @@ function renderHistory() {
   </tr>`).join('');
 }
 
+async function fetchWallet() {
+  try {
+    const r = await fetch('/api/wallet');
+    const w = await r.json();
+    if (!w || w.error) return;
+    document.getElementById('live-total').textContent = '$' + Number(w.totalUsd || 0).toFixed(2);
+    document.getElementById('live-split').textContent = `${Number(w.sol || 0).toFixed(4)} SOL / ${Number(w.usdc || 0).toFixed(2)} USDC`;
+  } catch {}
+}
+
 async function fetchData() {
   try {
     const r = await fetch('/api/prices');
@@ -379,7 +391,9 @@ document.getElementById('btn-reset').addEventListener('click', () => {
 });
 
 fetchData();
+fetchWallet();
 setInterval(fetchData, 10000);
+setInterval(fetchWallet, 15000);
 renderHistory();
 renderBot();
 </script>

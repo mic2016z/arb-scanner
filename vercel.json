@@ -1,5 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/prices", "destination": "/api/prices.js" }
+    { "source": "/api/prices", "destination": "/api/prices.js" },
+    { "source": "/api/wallet", "destination": "/api/wallet.js" }
   ]
 }
