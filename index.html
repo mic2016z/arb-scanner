@@ -432,9 +432,10 @@ async function fetchData() {
     tokenFilter.innerHTML = '<option value="">All</option>' + tokens.map(t => `<option value="${t}">${t}</option>`).join('');
     tokenFilter.value = current;
 
-    const hot = allData.filter(o => o.netSpread > 0.5);
-    if (hot.length) {
-      history = [...hot, ...history].slice(0, 100);
+    // Keep history populated even when market is flat/negative
+    const topSignals = allData.slice(0, 3);
+    if (topSignals.length) {
+      history = [...topSignals, ...history].slice(0, 100);
       localStorage.setItem('arb-history', JSON.stringify(history));
     }
 
