@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
-const TRADE_SIZE_USDC = 5;
-const SLIPPAGE_BPS = 80;
+const TRADE_SIZE_USDC = Number(process.env.TRADE_SIZE_USDC || 25); // match live bot size
+const SLIPPAGE_BPS = Number(process.env.SLIPPAGE_BPS || 50); // match live bot slippage
 const LOOP_MS = Number(process.env.MONITOR_LOOP_MS || 30000);
 const MAX_CYCLES = Number(process.env.MAX_CYCLES || 200);
 
