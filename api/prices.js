@@ -33,13 +33,23 @@ export default async function handler(req, res) {
   }
 
   // Fetch all exchanges in parallel
-  const [binanceR, bybitR, coinbaseR, krakenR, kucoinR] = await Promise.all([
+  let [binanceR, bybitR, coinbaseR, krakenR, kucoinR] = await Promise.all([
     fetchJSON('https://api.binance.com/api/v3/ticker/price'),
     fetchJSON('https://api.bybit.com/v5/market/tickers?category=spot'),
     fetchJSON('https://api.coinbase.com/v2/exchange-rates?currency=USD'),
     fetchJSON('https://api.kraken.com/0/public/Ticker?pair=' + Object.values(KRAKEN_MAP).join(',')),
     fetchJSON('https://api.kucoin.com/api/v1/market/allTickers'),
   ]);
+
+  // Regional/provider fallbacks
+  if (!binanceR.ok || !binanceR.data?.length) {
+    const fallback = await fetchJSON('https://api.binance.us/api/v3/ticker/price');
+    if (fallback.ok) binanceR = fallback;
+  }
+  if (!bybitR.ok || !bybitR.data?.result?.list?.length) {
+    const fallback = await fetchJSON('https://api.bytick.com/v5/market/tickers?category=spot');
+    if (fallback.ok) bybitR = fallback;
+  }
 
   const binance = binanceR.data;
   const bybit = bybitR.data;

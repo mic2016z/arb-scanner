@@ -484,6 +484,15 @@ setInterval(fetchData, 10000);
 setInterval(fetchWallet, 15000);
 renderHistory();
 renderBot();
+
+// Auto-start paper bot once per browser if user hasn't started manually yet
+if (!localStorage.getItem('paper-autostarted')) {
+  if (!bot.running && bot.trades === 0) {
+    bot.running = true;
+    addBotLog('Paper bot auto-started for demo mode.', 'win');
+  }
+  localStorage.setItem('paper-autostarted', '1');
+}
 </script>
 </body>
 </html>
