@@ -69,10 +69,10 @@ tr.hot td:first-child { border-left: 3px solid var(--green); }
 .log-time { color: var(--dim); margin-right: 8px; }
 .log-win { color: var(--green); }
 .log-loss { color: var(--red); }
-#trade-ledger-wrap { max-height: 260px; overflow:auto; border:1px solid var(--border); border-radius:8px; margin-bottom:10px; }
-#trade-ledger { width:100%; border-collapse: collapse; font-size:.72em; }
+#trade-ledger-wrap { max-height: 260px; overflow:auto; border:1px solid var(--border); border-radius:8px; margin-bottom:16px; position: relative; background:#0b0d22; }
+#trade-ledger { width:100%; border-collapse: collapse; font-size:.72em; table-layout:auto; }
 #trade-ledger th, #trade-ledger td { padding:6px 7px; border-bottom:1px solid rgba(255,255,255,.04); white-space:nowrap; }
-#trade-ledger th { position: sticky; top:0; background:#0f1024; color:var(--cyan); }
+#trade-ledger th { position: sticky; top:0; background:#0f1024; color:var(--cyan); z-index:2; }
 #trade-ledger tr.current { background: rgba(0,221,255,.09); }
 #trade-ledger td.pos { color: var(--green); }
 #trade-ledger td.neg { color: var(--red); }
@@ -83,6 +83,9 @@ tr.hot td:first-child { border-left: 3px solid var(--green); }
   .stat { min-width: 120px; padding: 10px 15px; }
   .stat-value { font-size: 1.5em; }
   table { font-size: 0.74em; }
+  #trade-ledger-wrap { max-height: 180px; margin-bottom: 20px; }
+  #trade-ledger th, #trade-ledger td { padding: 5px 6px; }
+  #scan-status { margin-top: 8px; }
 }
 </style>
 </head>
