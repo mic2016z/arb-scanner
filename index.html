@@ -21,6 +21,10 @@ h1 { font-size: 2.3em; color: var(--green); text-shadow: 0 0 30px rgba(0,255,136
 .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 15px 25px; text-align: center; min-width: 160px; }
 .stat-value { font-size: 2em; font-weight: 700; color: var(--green); }
 .stat-label { color: var(--dim); font-size: 0.75em; margin-top: 4px; text-transform: uppercase; letter-spacing: 2px; }
+.pnl-hero { margin: 10px auto 20px; max-width: 700px; background: linear-gradient(135deg,#0f1f1f,#111128); border:1px solid #1f3f3f; border-radius:14px; padding:16px; text-align:center; box-shadow: 0 0 25px rgba(0,255,136,.12); }
+.pnl-hero .title { color: var(--dim); font-size: .8em; letter-spacing: 2px; text-transform: uppercase; }
+.pnl-hero .value { font-size: 3em; font-weight: 700; color: var(--green); line-height: 1.1; }
+.pnl-hero .sub { color: var(--dim); font-size: .8em; }
 .controls { display: flex; gap: 15px; align-items: center; justify-content: center; margin: 20px 0; flex-wrap: wrap; }
 .controls label { color: var(--dim); font-size: 0.85em; }
 .controls input, .controls select, .controls button,
@@ -81,6 +85,12 @@ tr.hot td:first-child { border-left: 3px solid var(--green); }
     <h1>⚡ ARBITRAGE SCANNER + PAPER BOT</h1>
     <div class="subtitle">Live opportunities + autonomous fake-account demo trading</div>
   </header>
+
+  <div class="pnl-hero">
+    <div class="title">Main Number — Total Profit / Loss (Paper Demo)</div>
+    <div class="value" id="total-profit-main">$0.00</div>
+    <div class="sub" id="pnl-statement">No trades yet</div>
+  </div>
 
   <div class="stats">
     <div class="stat"><div class="stat-value" id="opp-count">—</div><div class="stat-label">Opportunities</div></div>
@@ -208,6 +218,16 @@ function renderBot() {
   document.getElementById('bot-winrate').textContent = wr + '%';
   document.getElementById('bot-trades').textContent = bot.trades;
   document.getElementById('bot-best').textContent = '$' + bot.best.toFixed(2);
+
+  const main = document.getElementById('total-profit-main');
+  const statement = document.getElementById('pnl-statement');
+  if (main && statement) {
+    main.textContent = (bot.pnl >= 0 ? '+' : '-') + '$' + Math.abs(bot.pnl).toFixed(2);
+    main.style.color = bot.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const wr = bot.trades ? ((bot.wins / bot.trades) * 100).toFixed(1) : '0.0';
+    statement.textContent = `Trades: ${bot.trades} | Wins: ${bot.wins} | Losses: ${bot.losses} | Win rate: ${wr}%`;
+  }
+
   paperLog.innerHTML = bot.logs.map(l => `<div class="log-item"><span class="log-time">${new Date(l.t).toLocaleTimeString()}</span><span class="${l.type==='win'?'log-win':l.type==='loss'?'log-loss':'mid'}">${l.msg}</span></div>`).join('');
 }
 
