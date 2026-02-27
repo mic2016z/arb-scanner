@@ -97,7 +97,7 @@ tr.hot td:first-child { border-left: 3px solid var(--green); }
   </header>
 
   <div class="pnl-hero">
-    <div class="title">Main Number — Total Profit / Loss (Paper Demo)</div>
+    <div class="title">Main Number — Net Profit / Loss (after fees/slippage model)</div>
     <div class="value" id="total-profit-main">$0.00</div>
     <div class="sub" id="pnl-statement">No trades yet</div>
   </div>
@@ -150,7 +150,7 @@ tr.hot td:first-child { border-left: 3px solid var(--green); }
         <div class="paper-kpi"><div class="lbl">Status</div><div class="val" id="bot-status">STOPPED</div></div>
         <div class="paper-kpi"><div class="lbl">Balance</div><div class="val" id="bot-balance">$70.00</div></div>
         <div class="paper-kpi"><div class="lbl">PnL</div><div class="val" id="bot-pnl">$0.00</div></div>
-        <div class="paper-kpi"><div class="lbl">Win Rate</div><div class="val" id="bot-winrate">0%</div></div>
+        <div class="paper-kpi"><div class="lbl">Success Rate (Net)</div><div class="val" id="bot-winrate">0%</div></div>
         <div class="paper-kpi"><div class="lbl">Trades</div><div class="val" id="bot-trades">0</div></div>
         <div class="paper-kpi"><div class="lbl">Best Trade</div><div class="val" id="bot-best">$0.00</div></div>
         <div class="paper-kpi"><div class="lbl">Live Wallet Total</div><div class="val" id="live-total">—</div></div>
@@ -245,7 +245,7 @@ function renderBot() {
     main.textContent = (bot.pnl >= 0 ? '+' : '-') + '$' + Math.abs(bot.pnl).toFixed(2);
     main.style.color = bot.pnl >= 0 ? 'var(--green)' : 'var(--red)';
     const wr = bot.trades ? ((bot.wins / bot.trades) * 100).toFixed(1) : '0.0';
-    statement.textContent = `Trades: ${bot.trades} | Wins: ${bot.wins} | Losses: ${bot.losses} | Win rate: ${wr}%`;
+    statement.textContent = `Trades: ${bot.trades} | Successful (net>0): ${bot.wins} | Unsuccessful: ${bot.losses} | Success rate: ${wr}% (after fees/slippage model)`;
   }
 
   const ledgerBody = document.getElementById('trade-ledger-body');
@@ -284,13 +284,13 @@ function maybePaperTrade() {
   const pick = candidates[0];
   const expected = tradeSize * (pick.netSpread / 100);
 
-  // Demo fill model: higher spread => higher chance of positive outcome
+  // Demo fill model with explicit execution frictions
   const winChance = Math.min(0.78, Math.max(0.42, 0.45 + pick.netSpread / 20));
-  const win = Math.random() < winChance;
+  const favorableFill = Math.random() < winChance;
   const slippagePenalty = (Math.random() * 0.35); // 0-0.35%
   const noise = (Math.random() * 0.8 + 0.6); // 60%-140%
 
-  let pnl = win
+  let pnl = favorableFill
     ? expected * noise - (tradeSize * slippagePenalty / 100)
     : -Math.max(expected * (0.5 + Math.random()), tradeSize * 0.003);
 
@@ -298,7 +298,8 @@ function maybePaperTrade() {
   bot.balance = Number((bot.balance + pnl).toFixed(2));
   bot.pnl = Number((bot.balance - bot.startBalance).toFixed(2));
   bot.trades += 1;
-  if (win) bot.wins += 1; else bot.losses += 1;
+  const isSuccessfulTrade = pnl > 0; // success = profitable AFTER execution frictions
+  if (isSuccessfulTrade) bot.wins += 1; else bot.losses += 1;
   if (pnl > bot.best) bot.best = pnl;
 
   bot.tradeHistory.unshift({
