@@ -6,7 +6,13 @@
   "scripts": {
     "start": "node api/prices.js",
     "bot:live": "node bot/live-solana-bot.js",
-    "bot:paper": "DRY_RUN=true node bot/live-solana-bot.js"
+    "bot:paper": "DRY_RUN=true node bot/live-solana-bot.js",
+    "bot:momentum": "node bot/momentum-bot.js",
+    "bot:momentum:paper": "DRY_RUN=true node bot/momentum-bot.js",
+    "bot:sniper": "node bot/token-sniper.js",
+    "bot:sniper:paper": "DRY_RUN=true node bot/token-sniper.js",
+    "bot:monitor": "node bot/spread-monitor.js",
+    "bot:calibrate": "node bot/historical-data.js"
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.2",
